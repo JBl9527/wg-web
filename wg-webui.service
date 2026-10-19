@@ -1,0 +1,19 @@
+[Unit]
+Description=WireGuard WebUI Management Service
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/wireguard-webui
+Environment="PYTHONUNBUFFERED=1"
+Environment="WG_CONF_PATH=/etc/wireguard/wg0.conf"
+Environment="WG_DATA_DIR=/opt/wireguard-webui/data"
+Environment="WEBUI_PORT=8000"
+ExecStart=/opt/wireguard-webui/venv/bin/python /opt/wireguard-webui/run.py --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WireGuard WebUI - 现代化 VPN 管理系统</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="/static/js/qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="wg-card" style="border-radius: 0; border-top: none; border-left: none; border-right: none; padding: 0.9rem 2rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <div style="width: 38px; height: 38px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.2rem; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);">
+        🛡️
+      </div>
+      <div>
+        <h1 style="font-size: 1.15rem; font-weight: 700; letter-spacing: -0.025em; display: flex; align-items: center; gap: 0.5rem;">
+          WireGuard WebUI
+          <span id="runtimeModeBadge" class="badge badge-primary" style="font-size: 0.7rem; font-weight: 500;">加载中</span>
+        </h1>
+        <p style="font-size: 0.75rem; color: var(--text-muted);">现代化 WireGuard 在线配置与密钥管理系统</p>
+      </div>
+    </div>
+
+    <!-- Right Controls -->
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <button class="btn btn-secondary btn-sm" onclick="openKeygenModal()">
+        🔑 在线密钥工具
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="openServerSettingsModal()">
+        ⚙️ 服务端设置
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="openPasswordModal()">
+        🔒 修改密码
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="toggleTheme()" id="themeBtn" title="切换深浅主题">
+        🌓
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="handleLogout()" id="logoutBtn">
+        退出
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main style="max-width: 1280px; width: 100%; margin: 1.5rem auto; padding: 0 1.5rem; flex: 1;">
+    
+    <!-- Dashboard Stats Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.75rem;">
+      
+      <!-- WG Interface Status -->
+      <div class="wg-card" style="padding: 1.1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">服务状态</span>
+          <span class="pulse-dot online" id="serverDot"></span>
+        </div>
+        <div style="font-size: 1.35rem; font-weight: 700; color: var(--success);" id="serverStatusText">运行中</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;" id="serverInterfaceText">接口: wg0</div>
+      </div>
+
+      <!-- Listen Port with Quick Edit -->
+      <div class="wg-card" style="padding: 1.1rem; border-color: rgba(59, 130, 246, 0.4);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">WireGuard 监听端口</span>
+          <button class="btn btn-primary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" onclick="openQuickPortModal()">
+            ⚡ 修改端口
+          </button>
+        </div>
+        <div style="font-size: 1.35rem; font-weight: 700; color: var(--primary);" id="statListenPort">51820</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">UDP 协议 (页面即时修改生效)</div>
+      </div>
+
+      <!-- Subnet & IP -->
+      <div class="wg-card" style="padding: 1.1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">VPN 虚拟网段</span>
+          <span style="font-size: 1rem;">🌐</span>
+        </div>
+        <div style="font-size: 1.35rem; font-weight: 700;" id="statSubnet">10.8.0.1/24</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">服务端虚拟 IP</div>
+      </div>
+
+      <!-- Endpoint Host -->
+      <div class="wg-card" style="padding: 1.1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">公网连接终端 (Endpoint)</span>
+          <span style="font-size: 1rem;">📡</span>
+        </div>
+        <div style="font-size: 1.25rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" id="statEndpoint">127.0.0.1:51820</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">手机连接目标地址</div>
+      </div>
+
+      <!-- Active Peers -->
+      <div class="wg-card" style="padding: 1.1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">在线客户端</span>
+          <span style="font-size: 1rem;">👥</span>
+        </div>
+        <div style="font-size: 1.35rem; font-weight: 700;" id="statPeersCount">0 / 0</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">最近3分钟内活跃</div>
+      </div>
+
+      <!-- Total Traffic -->
+      <div class="wg-card" style="padding: 1.1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <span style="font-size: 0.8rem; color: var(--text-secondary);">总吞吐流量</span>
+          <span style="font-size: 1rem;">📊</span>
+        </div>
+        <div style="font-size: 1.15rem; font-weight: 700;" id="statTraffic">↓ 0 B / ↑ 0 B</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">下载 / 上传传输统计</div>
+      </div>
+
+    </div>
+
+    <!-- Peers Management Section -->
+    <div class="wg-card" style="padding: 1.5rem; margin-bottom: 2rem;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.25rem;">
+        <div>
+          <h2 style="font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+            客户端列表 (Peers)
+            <span class="badge badge-primary" id="peerCountBadge">0 个客户端</span>
+          </h2>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+            在线生成密钥对、配置 IP，一键生成手机 WireGuard 扫码配置
+          </p>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <input type="text" id="peerSearchInput" placeholder="🔍 搜索名称、IP、公钥..." class="form-input" style="width: 220px; padding: 0.45rem 0.75rem;" oninput="filterPeers()">
+          <button class="btn btn-secondary btn-sm" onclick="loadPeers(true)">
+            🔄 刷新
+          </button>
+          <button class="btn btn-primary" onclick="openAddPeerModal()">
+            ➕ 添加客户端
+          </button>
+        </div>
+      </div>
+
+      <!-- Peers Table -->
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase;">
+              <th style="padding: 0.75rem 1rem;">状态</th>
+              <th style="padding: 0.75rem 1rem;">客户端设备</th>
+              <th style="padding: 0.75rem 1rem;">分配 IP</th>
+              <th style="padding: 0.75rem 1rem;">公钥 (Public Key)</th>
+              <th style="padding: 0.75rem 1rem;">最新握手</th>
+              <th style="padding: 0.75rem 1rem;">传输流量</th>
+              <th style="padding: 0.75rem 1rem; text-align: right;">快捷操作</th>
+            </tr>
+          </thead>
+          <tbody id="peersTableBody">
+            <!-- Dynamically populated -->
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                正在加载客户端信息...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ======================== MODALS ======================== -->
+
+  <!-- Modal 1: Add Peer Modal (添加客户端) -->
+  <div class="modal-overlay" id="addPeerModal">
+    <div class="modal-container" style="max-width: 620px;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">➕ 添加 WireGuard 客户端</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">支持在线生成密钥对，填写完成后即可一键生成手机连接二维码</p>
+        </div>
+        <button onclick="closeModal('addPeerModal')" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        
+        <!-- Peer Name -->
+        <div class="form-group">
+          <label class="form-label">客户端备注名称 <span style="color: var(--danger);">*</span></label>
+          <input type="text" id="addPeerName" class="form-input" placeholder="例如: iPhone 16 Pro / 我的笔记本 / 办公室iPad">
+        </div>
+
+        <!-- Key Pair Section with Online Generation -->
+        <div style="background-color: rgba(0,0,0,0.15); border: 1px dashed var(--border-color); border-radius: 10px; padding: 1rem; margin-bottom: 1.2rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <span style="font-size: 0.88rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
+              🔑 客户端密钥对 (Curve25519)
+            </span>
+            <button type="button" class="btn btn-primary btn-sm" onclick="generateKeysForAddPeer()">
+              ⚡ 在线一键生成密钥对
+            </button>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label class="form-label" style="font-size: 0.8rem;">客户端私钥 (Private Key) - 保存在客户端</label>
+            <input type="text" id="addPeerPrivateKey" class="form-input" placeholder="点击上方按钮自动生成，或手动填入">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label" style="font-size: 0.8rem;">客户端公钥 (Public Key) - 保存在服务端</label>
+            <input type="text" id="addPeerPublicKey" class="form-input" placeholder="私钥填入后自动推导，或点击上方生成">
+          </div>
+
+          <!-- Optional PSK -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+            <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0;">预共享密钥 (PSK, 可选量子防护):</label>
+            <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;" onclick="generatePSKForAddPeer()">
+              🎲 生成 PSK
+            </button>
+          </div>
+          <input type="text" id="addPeerPSK" class="form-input" style="margin-top: 0.35rem;" placeholder="可选留空，或点击生成增强密钥">
+        </div>
+
+        <!-- IP Address -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">分配 IP 地址 <span style="color: var(--danger);">*</span></label>
+            <span style="font-size: 0.75rem; color: var(--primary);" id="addPeerSuggestedIpText">已自动推荐下一个空闲 IP</span>
+          </div>
+          <input type="text" id="addPeerIp" class="form-input" placeholder="例如: 10.8.0.2">
+        </div>
+
+        <!-- Allowed IPs Route Presets -->
+        <div class="form-group">
+          <label class="form-label">客户端路由模式 (Allowed IPs)</label>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setAddPeerRoute('0.0.0.0/0, ::/0')">
+              🌐 全局代理模式 (0.0.0.0/0, ::/0)
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="setAddPeerRoute('10.8.0.0/24')">
+              🏢 仅局域网/内网分流 (10.8.0.0/24)
+            </button>
+          </div>
+          <input type="text" id="addPeerAllowedIps" class="form-input" value="0.0.0.0/0, ::/0">
+        </div>
+
+        <!-- DNS & Endpoint -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">DNS 服务器</label>
+            <input type="text" id="addPeerDns" class="form-input" value="1.1.1.1, 8.8.8.8">
+          </div>
+          <div class="form-group">
+            <label class="form-label">连接终端 (Endpoint)</label>
+            <input type="text" id="addPeerEndpoint" class="form-input" readonly title="使用当前服务端公网IP与设置的监听端口">
+          </div>
+        </div>
+
+      </div>
+
+      <div style="padding: 1.25rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem; background-color: rgba(0,0,0,0.05);">
+        <button class="btn btn-secondary" onclick="closeModal('addPeerModal')">取消</button>
+        <button class="btn btn-secondary" onclick="submitAddPeer(false)">仅保存客户端</button>
+        <button class="btn btn-primary" onclick="submitAddPeer(true)" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+          ✨ 保存并立即生成二维码 (手机扫码)
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal 2: QR Code & Config Modal (手机扫码与配置) -->
+  <div class="modal-overlay" id="qrCodeModal">
+    <div class="modal-container" style="max-width: 580px; text-align: center;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div style="text-align: left;">
+          <h3 style="font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+            📱 手机扫码连接 WireGuard
+          </h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);" id="qrModalSubtitle">设备: 加载中...</p>
+        </div>
+        <button onclick="closeModal('qrCodeModal')" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="padding: 1.75rem 1.5rem;">
+        
+        <!-- QR Code Canvas Display -->
+        <div class="qrcode-wrapper" id="qrcodeContainer">
+          <!-- Rendered by QRCode.js -->
+        </div>
+
+        <!-- Connection Instruction Banner -->
+        <div style="background-color: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 10px; padding: 0.9rem; margin: 1.25rem auto 1.25rem; text-align: left; max-width: 460px;">
+          <div style="font-weight: 600; font-size: 0.85rem; color: var(--primary); margin-bottom: 0.35rem;">
+            📲 手机极速连接教程：
+          </div>
+          <ol style="font-size: 0.78rem; color: var(--text-secondary); padding-left: 1.2rem; line-height: 1.45;">
+            <li>打开手机上的 <strong>WireGuard 官方 App</strong> (iOS / Android 免费下载)</li>
+            <li>点击右上角 <strong>'+'</strong> 号图标，选择 <strong>'扫描二维码' (Create from QR code)</strong></li>
+            <li>对准上方二维码扫描，为隧道输入任意备注名称保存</li>
+            <li>开启连接开关，即可安全畅联！</li>
+          </ol>
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap;">
+          <button class="btn btn-primary btn-sm" onclick="copyCurrentConfig()">
+            📋 复制配置文本
+          </button>
+          <a class="btn btn-secondary btn-sm" id="downloadConfBtn" href="#" download>
+            📥 下载 .conf 配置文件
+          </a>
+          <button class="btn btn-secondary btn-sm" onclick="toggleConfigPreview()">
+            👁️ <span id="togglePreviewText">展开配置内容</span>
+          </button>
+        </div>
+
+        <!-- Collapsible Config Text -->
+        <div id="configPreviewWrapper" style="display: none; margin-top: 1.25rem; text-align: left;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+            <span style="font-size: 0.78rem; color: var(--text-muted);">WireGuard 客户端标准配置文件内容:</span>
+          </div>
+          <pre class="code-preview" id="qrModalConfigText"></pre>
+        </div>
+
+      </div>
+
+      <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); background-color: rgba(0,0,0,0.05); display: flex; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeModal('qrCodeModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal 3: Quick Port Modifier (页面直接修改端口) -->
+  <div class="modal-overlay" id="quickPortModal">
+    <div class="modal-container" style="max-width: 480px;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">⚡ 修改 WireGuard 监听端口</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">修改后服务端即时生效，所有客户端配置自动使用新端口</p>
+        </div>
+        <button onclick="closeModal('quickPortModal')" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <div class="form-group">
+          <label class="form-label">新的 WireGuard UDP 监听端口 (1 - 65535)</label>
+          <input type="number" id="quickPortInput" class="form-input" style="font-size: 1.2rem; font-weight: 700; color: var(--primary);" min="1" max="65535" placeholder="51820">
+        </div>
+
+        <div style="background-color: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.85rem; font-size: 0.8rem; color: #fbbf24; line-height: 1.45;">
+          ⚠️ <strong>温馨提醒：</strong>
+          <br>1. 修改端口后，WireGuard 服务端将动态切换监听端口，无需重启机器；
+          <br>2. 请确保您的 VPS / 云服务器安全组或防火墙已放行该新端口 (UDP 协议)；
+          <br>3. 已经扫码配置过的旧客户端若要连接，请在新生成的二维码处重新扫码更新，或在手机 App 内手动将 Endpoint 端口修改为新端口。
+        </div>
+      </div>
+
+      <div style="padding: 1.25rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button class="btn btn-secondary" onclick="closeModal('quickPortModal')">取消</button>
+        <button class="btn btn-primary" onclick="submitQuickPort()">
+          💾 立即保存并生效
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal 4: Server Settings Modal (服务端全局设置) -->
+  <div class="modal-overlay" id="serverSettingsModal">
+    <div class="modal-container" style="max-width: 650px;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">⚙️ WireGuard 服务端配置</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">管理监听端口、公网终端地址、虚拟网段与网络转发</p>
+        </div>
+        <button onclick="closeModal('serverSettingsModal')" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        
+        <!-- Listen Port & Endpoint -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">监听端口 (ListenPort) <span style="color: var(--danger);">*</span></label>
+            <input type="number" id="settingListenPort" class="form-input" min="1" max="65535">
+          </div>
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <label class="form-label" style="margin-bottom: 0;">公网 IP / 域名 (Endpoint Host)</label>
+              <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;" onclick="autoDetectPublicIp()">
+                🌐 探测公网 IP
+              </button>
+            </div>
+            <input type="text" id="settingEndpointHost" class="form-input" placeholder="例如: 123.45.67.89 或 vpn.domain.com">
+          </div>
+        </div>
+
+        <!-- Subnet & DNS -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">服务端接口地址 (CIDR)</label>
+            <input type="text" id="settingAddress" class="form-input" placeholder="10.8.0.1/24">
+          </div>
+          <div class="form-group">
+            <label class="form-label">默认 DNS 服务器</label>
+            <input type="text" id="settingDns" class="form-input" placeholder="1.1.1.1, 8.8.8.8">
+          </div>
+        </div>
+
+        <!-- Server Keys Display -->
+        <div style="background-color: rgba(0,0,0,0.15); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.85rem; font-weight: 600;">🔐 服务端公钥 (Public Key)</span>
+            <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;" onclick="copyServerPubKey()">
+              复制公钥
+            </button>
+          </div>
+          <input type="text" id="settingServerPubKey" class="form-input" readonly>
+        </div>
+
+        <!-- MTU & Keepalive -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="form-label">MTU 大小 (默认 1420)</label>
+            <input type="number" id="settingMtu" class="form-input" placeholder="1420">
+          </div>
+          <div class="form-group">
+            <label class="form-label">心跳保活间隔 (PersistentKeepalive)</label>
+            <input type="number" id="settingKeepalive" class="form-input" placeholder="25">
+          </div>
+        </div>
+
+        <!-- PostUp & PostDown NAT Rules -->
+        <div class="form-group">
+          <label class="form-label">PostUp (启动时 NAT/iptables 规则)</label>
+          <input type="text" id="settingPostUp" class="form-input" style="font-family: monospace; font-size: 0.8rem;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">PostDown (停止时清理规则)</label>
+          <input type="text" id="settingPostDown" class="form-input" style="font-family: monospace; font-size: 0.8rem;">
+        </div>
+
+      </div>
+
+      <div style="padding: 1.25rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: rgba(0,0,0,0.05);">
+        <button class="btn btn-danger btn-sm" onclick="restartWireGuardInterface()">
+          🔄 重启 WireGuard 接口
+        </button>
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn btn-secondary" onclick="closeModal('serverSettingsModal')">取消</button>
+          <button class="btn btn-primary" onclick="submitServerSettings()">
+            💾 保存配置
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal 5: Standalone Key Generator Tool (独立在线密钥工具) -->
+  <div class="modal-overlay" id="keygenModal">
+    <div class="modal-container" style="max-width: 550px;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">🔑 WireGuard 在线密钥对工具</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">Curve25519 密钥生成、公钥推导与 PSK 生成</p>
+        </div>
+        <button onclick="closeModal('keygenModal')" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="padding: 1.5rem;">
+        <button class="btn btn-primary" style="width: 100%; margin-bottom: 1.25rem;" onclick="generateToolKeypair()">
+          ⚡ 生成全新 Curve25519 密钥对
+        </button>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">私钥 (Private Key):</label>
+            <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;" onclick="copyInputText('toolPrivKey')">复制</button>
+          </div>
+          <input type="text" id="toolPrivKey" class="form-input" style="font-family: monospace;">
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">公钥 (Public Key):</label>
+            <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;" onclick="copyInputText('toolPubKey')">复制</button>
+          </div>
+          <input type="text" id="toolPubKey" class="form-input" style="font-family: monospace;">
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label" style="margin-bottom: 0;">预共享密钥 (Preshared Key / PSK):</label>
+            <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 0.15rem 0.5rem;" onclick="copyInputText('toolPsk')">复制</button>
+          </div>
+          <input type="text" id="toolPsk" class="form-input" style="font-family: monospace;">
+        </div>
+      </div>
+
+      <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeModal('keygenModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal 6: Change Password Modal (修改密码) -->
+  <div class="modal-overlay" id="passwordModal">
+    <div class="modal-container" style="max-width: 440px;">
+      <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 style="font-size: 1.15rem; font-weight: 700;">🔒 修改 Web 管理员密码</h3>
+        <button onclick="closeModal('passwordModal')" style="background: none; border: none; font-size: 1.3rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+      <div style="padding: 1.5rem;">
+        <div class="form-group">
+          <label class="form-label">原密码</label>
+          <input type="password" id="oldPwdInput" class="form-input" placeholder="默认密码: admin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">新密码</label>
+          <input type="password" id="newPwdInput" class="form-input" placeholder="请输入新密码">
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认新密码</label>
+          <input type="password" id="confirmPwdInput" class="form-input" placeholder="请再次输入新密码">
+        </div>
+      </div>
+      <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button class="btn btn-secondary" onclick="closeModal('passwordModal')">取消</button>
+        <button class="btn btn-primary" onclick="submitChangePassword()">确认修改</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal 7: Login Modal (登录弹窗) -->
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal-container" style="max-width: 400px;">
+      <div style="padding: 1.5rem; text-align: center; border-bottom: 1px solid var(--border-color);">
+        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 1.6rem; margin-bottom: 0.75rem;">
+          🛡️
+        </div>
+        <h3 style="font-size: 1.25rem; font-weight: 700;">WireGuard 管理登录</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">请输入管理员账号密码继续访问</p>
+      </div>
+      <div style="padding: 1.5rem;">
+        <div class="form-group">
+          <label class="form-label">用户名</label>
+          <input type="text" id="loginUser" class="form-input" value="admin">
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码</label>
+          <input type="password" id="loginPass" class="form-input" placeholder="默认初始密码: admin" onkeydown="if(event.key==='Enter') submitLogin()">
+        </div>
+        <button class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" onclick="submitLogin()">
+          立即登录
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toastBox">
+    <span id="toastIcon">ℹ️</span>
+    <span id="toastMsg">通知信息</span>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
