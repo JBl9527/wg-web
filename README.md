@@ -30,68 +30,112 @@
 
 ---
 
-## 🚀 快速开始与部署
+## 🚀 两种安装部署方式
 
-### 方式一：Linux 服务器一键自动化安装（推荐）
+你可以根据使用习惯选择 **直接安装（Linux 宿主机原生运行）** 或 **Docker 容器化部署**：
 
-适用于 **Ubuntu 20.04/22.04/24.04**、**Debian 11/12**、**CentOS 8/9**、**Rocky Linux**、**AlmaLinux**：
+---
+
+### 方案 A：直接安装（推荐，性能最高且无需 Docker）
+
+直接部署在 Linux 宿主机上，由 Systemd 守护进程管理，原生驱动 Linux 内核 WireGuard 模块，支持页面直接热切换端口。
+
+#### 1. 一键脚本安装（支持 Ubuntu / Debian / CentOS / Rocky / AlmaLinux）
+
+在服务器终端中执行：
 
 ```bash
-# 1. 下载或克隆仓库到服务器
+# 方式一：克隆仓库并执行安装
 git clone https://github.com/JBl9527/wg-web.git /opt/wireguard-webui
 cd /opt/wireguard-webui
-
-# 2. 授予脚本执行权限并一键安装
 chmod +x install.sh
 sudo ./install.sh
 ```
 
-> **一键脚本自动完成：**
-> 1. 安装 `wireguard`、`wireguard-tools`、`iptables`、`python3`；
-> 2. 开启 Linux 内核网络转发 (`net.ipv4.ip_forward = 1`)；
-> 3. 安装 Python 依赖并配置独立虚拟环境；
-> 4. 自动注册 Systemd 服务 `wg-webui.service` 并开机自启；
-> 5. 自动配置防火墙放行 Web 端口（8000）与 WireGuard UDP 端口（51820）。
-
-安装完成后，打开浏览器访问：
-```text
-http://<你的服务器公网IP>:8000
-默认用户名: admin
-默认密码  : admin  (登录后请在右上角及时修改)
+或者使用单行命令一键拉取执行：
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/JBl9527/wg-web/main/install.sh)"
 ```
+
+> **一键脚本自动处理：**
+> - 安装 `wireguard`、`wireguard-tools`、`iptables`、`python3` 及依赖；
+> - 开启 Linux 内核转发 (`net.ipv4.ip_forward = 1`)；
+> - 自动创建 Python 独立虚拟环境，隔绝系统环境污染；
+> - 注册并开机自启 Systemd 系统服务 `wg-webui.service`；
+> - 自动配置防火墙规则放行对应端口。
+
+#### 2. 直接安装的管理命令
+
+| 操作 | 对应命令 |
+| :--- | :--- |
+| **查看运行状态** | `systemctl status wg-webui` |
+| **查看实时日志** | `journalctl -u wg-webui -f` |
+| **重启 Web 服务** | `systemctl restart wg-webui` |
+| **停止 Web 服务** | `systemctl stop wg-webui` |
+| **启动 Web 服务** | `systemctl start wg-webui` |
 
 ---
 
-### 方式二：Docker & Docker Compose 部署
+### 方案 B：Docker 容器化部署
+
+如果你习惯使用 Docker 管理服务器服务，可通过 Docker 或 Docker Compose 秒级启动。
+
+#### 1. 使用 Docker Compose 部署（推荐）
 
 ```bash
-# 进入项目目录
-cd wireguard-webui
+# 1. 克隆代码
+git clone https://github.com/JBl9527/wg-web.git
+cd wg-web
 
-# 后台构建并启动容器
+# 2. 启动容器
 docker compose up -d
 ```
 
-查看日志与状态：
+> **💡 关于网络模式：**
+> 项目默认配置为 `network_mode: host`。
+> - **优势**：容器直接与宿主机网络栈共享，**在 Web 界面随时修改 WireGuard 监听端口（如从 51820 改为 51825）后立即在宿主机生效**，无需重新映射 Docker 端口或重启容器；同时享受 100% 原生内核数据包吞吐速度。
+
+#### 2. 使用 Docker CLI 单行命令运行
+
 ```bash
+docker run -d \
+  --name wireguard-webui \
+  --restart unless-stopped \
+  --network host \
+  --cap-add NET_ADMIN \
+  --cap-add SYS_MODULE \
+  -v $(pwd)/data:/app/data \
+  -v /etc/wireguard:/etc/wireguard \
+  -v /lib/modules:/lib/modules:ro \
+  -e WEBUI_PORT=8000 \
+  -e WEBUI_HOST=0.0.0.0 \
+  -e WG_DEFAULT_PORT=51820 \
+  $(docker build -q .)
+```
+
+#### 3. Docker 常用管理命令
+
+```bash
+# 查看运行日志
 docker compose logs -f
+
+# 重启容器
+docker compose restart
+
+# 停止并移除容器
+docker compose down
 ```
 
 ---
 
-### 方式三：手动运行 / 本地开发调试
+### 访问方式
 
-系统需安装 Python 3.10+：
-
-```bash
-# 1. 安装依赖
-pip install -r requirements.txt
-
-# 2. 启动服务
-python run.py --host 0.0.0.0 --port 8000
+安装成功后，打开浏览器访问：
+```text
+http://<你的服务器公网IP>:8000
+默认管理员账号: admin
+默认初始密码  : admin  (登录后请在右上角及时修改)
 ```
-
-访问 `http://127.0.0.1:8000` 即可开始使用。
 
 ---
 

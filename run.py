@@ -30,6 +30,7 @@ def main():
 
     # Pre-sync WireGuard server configuration on startup
     wg_manager.sync_config_file()
+    wg_manager.ensure_interface_up()
 
     server_cfg = storage.get_server_config()
     listen_port = server_cfg.get("listen_port", 51820)

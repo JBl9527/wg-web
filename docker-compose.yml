@@ -3,20 +3,34 @@ services:
     build: .
     container_name: wireguard-webui
     restart: unless-stopped
+
+    # 推荐使用 host 网络模式：
+    # 1. 允许在 WebUI 页面直接动态修改 WireGuard 监听端口（无需重新配置 Docker 映射或重启容器）
+    # 2. 具备原生内核级数据转发性能，无额外网络桥接损耗
+    network_mode: host
+
+    # 必须赋予的网络与内核模块管理特权
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    sysctls:
-      - net.ipv4.ip_forward=1
-      - net.ipv4.conf.all.src_valid_mark=1
-    ports:
-      - "8000:8000"
-      - "51820:51820/udp"
+
     volumes:
       - ./data:/app/data
       - /etc/wireguard:/etc/wireguard
       - /lib/modules:/lib/modules:ro
+
     environment:
       - WEBUI_PORT=8000
       - WEBUI_HOST=0.0.0.0
       - WG_DEFAULT_PORT=51820
+
+    # -------------------------------------------------------------
+    # 备选方式：若不使用 host 网络模式，可注释掉上面的 network_mode: host，
+    # 并取消下面 ports 与 sysctls 的注释（注意：桥接模式下修改端口需提前映射对应端口）：
+    # -------------------------------------------------------------
+    # ports:
+    #   - "8000:8000"
+    #   - "51820:51820/udp"
+    # sysctls:
+    #   - net.ipv4.ip_forward=1
+    #   - net.ipv4.conf.all.src_valid_mark=1

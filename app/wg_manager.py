@@ -131,6 +131,24 @@ class WireGuardManager:
         except Exception:
             return False
 
+    def ensure_interface_up(self) -> Tuple[bool, str]:
+        """Ensure that the WireGuard interface is started on system boot."""
+        if not self.is_native_available:
+            return True, "Simulation mode active"
+
+        if not self.is_interface_active():
+            self.sync_config_file()
+            if self.has_wg_quick:
+                try:
+                    proc = subprocess.run(["wg-quick", "up", self.interface], capture_output=True, text=True, timeout=10)
+                    if proc.returncode == 0:
+                        return True, "WireGuard interface automatically started."
+                    return False, f"Failed to bring up interface: {proc.stderr.strip()}"
+                except Exception as e:
+                    return False, str(e)
+            return False, "wg-quick not found"
+        return True, "WireGuard interface is already active."
+
     def restart_interface(self) -> Tuple[bool, str]:
         """Restart WireGuard interface (down then up)."""
         self.sync_config_file()

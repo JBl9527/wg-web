@@ -31,11 +31,11 @@ echo -e "\n${YELLOW}[1/6] 正在识别系统环境并安装必要依赖...${NC}"
 if [ -f /etc/debian_version ]; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
-    apt-get install -y wireguard wireguard-tools iptables iproute2 curl python3 python3-pip python3-venv qrencode
+    apt-get install -y wireguard wireguard-tools iptables iproute2 curl git python3 python3-pip python3-venv qrencode
 elif [ -f /etc/redhat-release ]; then
     yum install -y epel-release || dnf install -y epel-release || true
-    yum install -y wireguard-tools iptables iproute curl python3 python3-pip qrencode || \
-    dnf install -y wireguard-tools iptables iproute curl python3 python3-pip qrencode
+    yum install -y wireguard-tools iptables iproute curl git python3 python3-pip qrencode || \
+    dnf install -y wireguard-tools iptables iproute curl git python3 python3-pip qrencode
 else
     echo -e "${RED}[警告] 未识别的 Linux 发行版，尝试使用包管理器安装基础工具...${NC}"
 fi
@@ -61,9 +61,18 @@ mkdir -p "${INSTALL_DIR}"
 mkdir -p "${INSTALL_DIR}/data"
 mkdir -p /etc/wireguard
 
-# 复制当前目录所有文件到安装目录
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp -rf "${SCRIPT_DIR}"/* "${INSTALL_DIR}/" || true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+if [ -n "$SCRIPT_DIR" ] && [ -f "${SCRIPT_DIR}/run.py" ]; then
+    echo -e "   从本地目录复制应用文件..."
+    cp -rf "${SCRIPT_DIR}"/* "${INSTALL_DIR}/" || true
+else
+    echo -e "   从 GitHub 拉取最新源码..."
+    if [ -d "${INSTALL_DIR}/.git" ]; then
+        cd "${INSTALL_DIR}" && git pull
+    else
+        git clone https://github.com/JBl9527/wg-web.git "${INSTALL_DIR}"
+    fi
+fi
 
 # 6. 配置 Python 虚拟环境与依赖
 echo -e "\n${YELLOW}[4/6] 配置 Python 虚拟运行环境与依赖包...${NC}"
