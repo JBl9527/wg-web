@@ -197,12 +197,89 @@ wireguard-webui/
 │           └── qrcode.min.js # 高性能本地离线二维码渲染引擎
 ├── data/                   # 持久化数据目录
 ├── install.sh              # Linux 系统一键安装与服务配置脚本
+├── uninstall.sh            # Linux 系统完全卸载清理脚本
 ├── wg-webui.service        # Systemd 服务单元文件
 ├── Dockerfile              # Docker 镜像构建文件
 ├── docker-compose.yml      # Docker Compose 编排文件
 ├── requirements.txt        # Python 依赖清单
 ├── run.py                  # 应用启动主入口
 └── README.md               # 项目使用说明文档
+```
+
+---
+
+## 🗑️ 完全卸载指南
+
+如果你不再需要使用该程序，可按以下方式完全清理卸载：
+
+### 1. 直接安装方式的完全卸载
+
+#### 方式 A：一键自动化卸载脚本（最简单、最干净）
+
+在服务器终端中执行：
+
+```bash
+# 进入安装目录执行卸载脚本
+cd /opt/wireguard-webui
+sudo ./uninstall.sh
+```
+
+或者使用网络单行命令直接彻底卸载：
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/JBl9527/wg-web/main/uninstall.sh)"
+```
+
+> **自动化卸载将自动完成：**
+> - 停止并禁用 `wg-webui.service` 系统服务并注销；
+> - 关闭 WireGuard `wg0` 接口并自动回滚清理 iptables NAT 转发规则；
+> - 删除 `/opt/wireguard-webui` 程序源码与 Python 虚拟环境；
+> - 清理 `/etc/wireguard/wg0.conf` 及内核转发配置文件；
+> - 自动清理关闭 UFW 或 Firewalld 防火墙中放行的端口（8000 与 51820）。
+
+#### 方式 B：手动逐步卸载命令（按需逐条核对）
+
+```bash
+# 1. 停止并注销守护服务
+sudo systemctl stop wg-webui
+sudo systemctl disable wg-webui
+sudo rm -f /etc/systemd/system/wg-webui.service
+sudo systemctl daemon-reload
+
+# 2. 关闭并清理 WireGuard 网络接口与 NAT 规则
+sudo wg-quick down wg0 2>/dev/null || true
+
+# 3. 删除程序文件与配置文件
+sudo rm -rf /opt/wireguard-webui
+sudo rm -f /etc/wireguard/wg0.conf
+sudo rm -f /etc/sysctl.d/99-wireguard-forward.conf
+
+# 4. 清理防火墙端口（根据你启用的防火墙选其一）
+# 若使用 UFW:
+sudo ufw delete allow 8000/tcp
+sudo ufw delete allow 51820/udp
+
+# 若使用 Firewalld:
+sudo firewall-cmd --permanent --remove-port=8000/tcp
+sudo firewall-cmd --permanent --remove-port=51820/udp
+sudo firewall-cmd --reload
+```
+
+---
+
+### 2. Docker 部署方式的完全卸载
+
+进入项目所在目录，执行以下清理命令即可彻底删除容器、网络、镜像与数据卷：
+
+```bash
+# 1. 进入项目目录
+cd wg-web
+
+# 2. 停止并删除容器、数据卷与构建的本地镜像
+docker compose down -v --rmi all
+
+# 3. （可选）清理挂载到宿主机的数据与配置文件
+sudo rm -rf ./data
+sudo rm -f /etc/wireguard/wg0.conf
 ```
 
 ---
@@ -216,6 +293,7 @@ wireguard-webui/
 | **重启 Web 服务** | `systemctl restart wg-webui` |
 | **查看 WireGuard 内核状态** | `wg show` |
 | **查看 NAT 转发规则** | `iptables -t nat -L -n -v` |
+| **完全卸载清理** | `sudo ./uninstall.sh` |
 
 ---
 
